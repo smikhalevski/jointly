@@ -2,18 +2,52 @@ import { ChildProcess, spawn, SpawnOptionsWithoutStdio } from 'child_process';
 import { blue, cyan, green, magenta, red, yellow } from 'kleur/colors';
 
 export interface Task extends SpawnOptionsWithoutStdio {
+  /**
+   * The unique name of the task.
+   */
   name: string;
+
+  /**
+   * The command to execute.
+   */
   command: string;
-  args?:  readonly string[];
+
+  /**
+   * The array of CLI arguments to pass to the command.
+   */
+  args?: readonly string[];
+
+  /**
+   * When this task allows its dependants to start.
+   *
+   * The callback that receives a line that command printed to the stdout and returns `true` if dependent tasks should
+   * be started. Or `'exit'` if the dependents should start only after this task exits.
+   */
   resolveAfter?: 'exit' | ((str: string) => boolean);
+
+  /**
+   * If `true` then dependent tasks would fail if this one fails.
+   *
+   * @default false
+   */
   required?: boolean;
+
+  /**
+   * The array of task names that must be resolved before this task.
+   */
   dependsOn?: string[];
 }
 
 export const labelColors = [red, blue, magenta, yellow, cyan, green];
 
-export function start(tasks: Task[]) {
-  const labelLength = tasks.reduce((length, task) => Math.max(length, String(task.name).length), 0) + 2;
+/**
+ * Starts execution of tasks.
+ *
+ * @param tasks Tasks to executor.
+ * @returns The promise that is resolved as soon as all tasks have exited.
+ */
+export function start(tasks: Task[]): Promise<void> {
+  const labelLength = tasks.reduce((length, task) => Math.max(length, task.name.length), 0) + 2;
   const processes: ChildProcess[] = [];
 
   let promise: Promise<unknown> = Promise.resolve();
@@ -35,21 +69,25 @@ export function start(tasks: Task[]) {
     );
   }
 
-  // Kill processes on failure
-  promise.catch(() => {
-    for (const process of processes) {
-      process.kill('SIGINT');
+  return promise.then(
+    () => {},
+    () => {
+      // Kill all processes on failure
+      for (const process of processes) {
+        process.kill('SIGINT');
+      }
     }
-  });
+  );
 }
 
 export function groupTasks(tasks: Task[]): Task[][] {
   const groups = [];
 
-  for (let dependents = tasks.slice(0); dependents.length !== 0;) {
+  for (let dependents = tasks.slice(0); dependents.length !== 0; ) {
     const group = dependents.filter(
       task => !Array.isArray(task.dependsOn) || !dependents.some(dependent => task.dependsOn!.includes(dependent.name))
     );
+
     if (group.length === 0) {
       throw new Error('Cyclic dependency');
     }
@@ -60,9 +98,13 @@ export function groupTasks(tasks: Task[]): Task[][] {
   return groups;
 }
 
-export function launchTask(label: string, task: Task, onProcessStarted: (childProcess: ChildProcess) => void): Promise<void> {
+export function launchTask(
+  label: string,
+  task: Task,
+  onProcessStarted: (childProcess: ChildProcess) => void
+): Promise<void> {
   return new Promise((resolveTask, rejectTask) => {
-    const {resolveAfter, required} = task;
+    const { resolveAfter, required } = task;
 
     const childProcess = spawn(task.command, task.args, task);
 
