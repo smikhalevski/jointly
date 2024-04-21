@@ -1,7 +1,7 @@
 import { ChildProcess, spawn, SpawnOptionsWithoutStdio } from 'child_process';
 import { blue, cyan, green, magenta, red, yellow } from 'kleur/colors';
 
-export interface Task extends SpawnOptionsWithoutStdio {
+export interface Task extends Omit<SpawnOptionsWithoutStdio, 'detached' | 'windowsHide'> {
   /**
    * The shell command to execute.
    */
