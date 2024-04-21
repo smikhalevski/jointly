@@ -3,12 +3,7 @@ import { blue, cyan, green, magenta, red, yellow } from 'kleur/colors';
 
 export interface Task extends SpawnOptionsWithoutStdio {
   /**
-   * The unique name of the task.
-   */
-  name: string;
-
-  /**
-   * The command to execute.
+   * The shell command to execute.
    */
   command: string;
 
@@ -18,66 +13,90 @@ export interface Task extends SpawnOptionsWithoutStdio {
   args?: readonly string[];
 
   /**
-   * When this task allows its dependants to start.
-   *
-   * The callback that receives a line that command printed to the stdout and returns `true` if dependent tasks should
-   * be started. Or `'exit'` if the dependents should start only after this task exits.
+   * The unique ID of the task.
    */
-  resolveAfter?: 'exit' | ((str: string) => boolean);
+  id?: string;
 
   /**
-   * If `true` then dependent tasks would fail if this one fails.
-   *
-   * @default false
+   * The label to render as stdout prefix. If omitted then {@link id} or {@link command} are used as a label.
    */
-  required?: boolean;
+  label?: string;
 
   /**
-   * The array of task names that must be resolved before this task.
+   * Determines when the task is considered fulfilled and allows its dependants to start:
+   *
+   * - `start` then dependants start immediately after this command is started.
+   * - `exit` then dependents start only after the command exits.
+   * - The callback that receives a line that command printed to the stdout and returns `true` if dependent tasks should
+   * be started, or `false` otherwise.
+   *
+   * @default start
    */
-  dependsOn?: string[];
+  resolveStrategy?: 'start' | 'exit' | ((str: string) => boolean);
+
+  /**
+   * Determines when the task is considered failed:
+   *
+   * - `auto` then the task is failed if the command exit code isn't 0.
+   * - `never` then the task is never failed.
+   * - The callback that returns `true` is the task must be considered failed for a particular exit code.
+   *
+   * @default auto
+   */
+  rejectStrategy?: 'auto' | 'never' | ((exitCode: number) => boolean);
+
+  /**
+   * The array of task IDs that must be resolved before this task.
+   */
+  dependencies?: string[];
 }
 
-export const labelColors = [red, blue, magenta, yellow, cyan, green];
+export interface StartTasksOptions {
+  /**
+   * An array of functions that receive a label and must return the string with color escape codes.
+   */
+  labelColors?: ReadonlyArray<(str: string) => string>;
+}
+
+const defaultLabelColors = [red, blue, magenta, yellow, cyan, green];
 
 /**
  * Starts execution of tasks.
  *
  * @param tasks Tasks to executor.
+ * @param options Additional options.
  * @returns The promise that is resolved as soon as all tasks have exited.
  */
-export function start(tasks: Task[]): Promise<void> {
-  const labelLength = tasks.reduce((length, task) => Math.max(length, task.name.length), 0) + 2;
-  const processes: ChildProcess[] = [];
+export function startTasks(tasks: Task[], options: StartTasksOptions = {}): Promise<void> {
+  const { labelColors = defaultLabelColors } = options;
+  const labelLength = tasks.reduce((length, task) => Math.max(length, getLabel(task).length), 0) + 2;
+  const launchedTasks: [Task, ChildProcess][] = [];
 
   let promise: Promise<unknown> = Promise.resolve();
   let taskIndex = 0;
 
-  for (const group of groupTasks(tasks)) {
+  for (const taskGroup of groupTasks(tasks)) {
     promise = promise.then(() =>
       Promise.all(
-        group.map(task =>
-          launchTask(
-            labelColors[taskIndex++ % labelColors.length](task.name.padEnd(labelLength) + '|'),
-            task,
-            process => {
-              processes.push(process);
-            }
-          )
-        )
+        taskGroup.map(task => {
+          const labelColor = labelColors[taskIndex++ % labelColors.length];
+          const label = getLabel(task).padEnd(labelLength) + '|';
+          const { childProcess, promise } = launchTask(labelColor !== undefined ? labelColor(label) : label, task);
+
+          launchedTasks.push([task, childProcess]);
+
+          return promise;
+        })
       )
     );
   }
 
-  return promise.then(
-    () => {},
-    () => {
-      // Kill all processes on failure
-      for (const process of processes) {
-        process.kill('SIGINT');
-      }
+  return promise.then(noop, () => {
+    // Kill all child processes on failure
+    for (const [task, childProcess] of launchedTasks) {
+      childProcess.kill(task.killSignal || 'SIGINT');
     }
-  );
+  });
 }
 
 export function groupTasks(tasks: Task[]): Task[][] {
@@ -85,7 +104,9 @@ export function groupTasks(tasks: Task[]): Task[][] {
 
   for (let dependents = tasks.slice(0); dependents.length !== 0; ) {
     const group = dependents.filter(
-      task => !Array.isArray(task.dependsOn) || !dependents.some(dependent => task.dependsOn!.includes(dependent.name))
+      task =>
+        !Array.isArray(task.dependencies) ||
+        !dependents.some(dependent => dependent.id !== undefined && task.dependencies!.includes(dependent.id))
     );
 
     if (group.length === 0) {
@@ -98,86 +119,85 @@ export function groupTasks(tasks: Task[]): Task[][] {
   return groups;
 }
 
-export function launchTask(
-  label: string,
-  task: Task,
-  onProcessStarted: (childProcess: ChildProcess) => void
-): Promise<void> {
-  return new Promise((resolveTask, rejectTask) => {
-    const { resolveAfter, required } = task;
+export function launchTask(label: string, task: Task): { childProcess: ChildProcess; promise: Promise<void> } {
+  let buffer = '';
 
-    const childProcess = spawn(task.command, task.args, task);
+  const printLine = (str: string): string => {
+    let line = '';
 
-    onProcessStarted(childProcess);
-
-    const lfPattern = /\n(?!$)/g;
-
-    let buffer = '';
-
-    const printLine = (str: string) => {
-      let line = '';
-
-      if (str.length === 0) {
-        // Nothing to print
-        return line;
-      }
-
-      if (str.charAt(str.length - 1) === '\n') {
-        // LF-terminated string
-        printString((line = buffer + str));
-        buffer = '';
-        return line;
-      }
-
-      const lfIndex = str.indexOf('\n');
-
-      if (lfIndex !== -1) {
-        // LF-terminated substring
-        printString((line = buffer + str.substring(0, lfIndex + 1)));
-        buffer = str.substring(lfIndex + 1);
-        return line;
-      }
-
-      // Unterminated string
-      buffer += str;
+    if (str.length === 0) {
+      // Nothing to print
       return line;
-    };
+    }
 
-    const printString = (str: string) => {
-      process.stdout.write(label + ' ' + str.replace(lfPattern, '$&' + label + ' '));
-    };
+    if (str.charAt(str.length - 1) === '\n') {
+      // LF-terminated string
+      line = buffer + str;
+      buffer = '';
+      printLabelLine(line);
+      return line;
+    }
 
-    const writeToStdout = (data: string) => {
-      printLine(data.toString());
-    };
+    const lfIndex = str.indexOf('\n');
+
+    if (lfIndex !== -1) {
+      // LF-terminated substring
+      line = buffer + str.substring(0, lfIndex + 1);
+      buffer = str.substring(lfIndex + 1);
+      printLabelLine(line);
+      return line;
+    }
+
+    // Unterminated string
+    buffer += str;
+    return line;
+  };
+
+  const printLabelLine = (str: string): void => {
+    process.stdout.write(label + ' ' + str.replace(lfRe, '$&' + label + ' '));
+  };
+
+  const printToStdout = (data: Buffer | string): void => {
+    printLine(data.toString());
+  };
+
+  const childProcess = spawn(task.command, task.args, Object.assign({}, task, { detached: false, windowsHide: true }));
+
+  const promise = new Promise<void>((resolveTask, rejectTask) => {
+    const { resolveStrategy, rejectStrategy } = task;
 
     childProcess.on('exit', exitCode => {
       // Flush buffer to stdout on exit
       if (buffer.length !== 0) {
-        printString(buffer + '\n');
+        printLabelLine(buffer + '\n');
       }
-
+      if (rejectStrategy === 'never') {
+        return;
+      }
+      if (typeof rejectStrategy === 'function') {
+        if (rejectStrategy(exitCode || 0)) {
+          rejectTask();
+        }
+        return;
+      }
       if (exitCode === null || exitCode === 0) {
         return;
       }
-
       // Kill the sequence if the task has failed
-      if (required) {
-        rejectTask();
-      }
+      rejectTask();
     });
 
-    let dataListener = writeToStdout;
+    let dataListener = printToStdout;
 
-    if (typeof resolveAfter === 'function') {
+    if (typeof resolveStrategy === 'function') {
       dataListener = data => {
-        if (resolveAfter(stripEscapeCodes(printLine(data.toString())))) {
-          childProcess.stdout.off('data', dataListener).on('data', writeToStdout);
-          childProcess.stderr.off('data', dataListener).on('data', writeToStdout);
+        if (resolveStrategy(stripEscapeCodes(printLine(data.toString())))) {
+          childProcess.stdout.off('data', dataListener).on('data', printToStdout);
+          childProcess.stderr.off('data', dataListener).on('data', printToStdout);
           resolveTask();
         }
       };
-    } else if (resolveAfter === 'exit') {
+    } else if (resolveStrategy === 'exit') {
       childProcess.on('exit', () => {
         resolveTask();
       });
@@ -188,10 +208,20 @@ export function launchTask(
     childProcess.stdout.on('data', dataListener);
     childProcess.stderr.on('data', dataListener);
   });
+
+  return { childProcess, promise };
 }
 
-export const escapeCodeRe = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+const lfRe = /\n(?!$)/g;
+
+const escapeCodeRe = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 
 export function stripEscapeCodes(str: string): string {
   return str.replace(escapeCodeRe, '');
 }
+
+export function getLabel(task: Task): string {
+  return task.label || task.id || task.command;
+}
+
+function noop() {}

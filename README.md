@@ -1,73 +1,130 @@
-# jointly
+<p align="center">
+  <a href="#readme"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/logo-dark.png" />
+    <source media="(prefers-color-scheme: light)" srcset="./assets/logo-light.png" />
+    <img alt="Jointly" src="./assets/logo-light.png" width="500" />
+  </picture></a>
+</p>
 
-Run multiple processes in parallel.
+Run multiple processes from a single terminal.
 
 ```shell
 npm install jointly --save-dev
 ```
 
-Create a configuration `jointly.config.json` with tasks that should be executed:
+Create a configuration `jointly.config.json` (or `jointly.config.js`) with tasks that should be executed:
 
 ```json
 [
   {
-    "name": "ping-google",
     "command": "ping",
-    "args": [
-      "google.com"
-    ]
+    "args": ["google.com"]
   },
   {
-    "name": "ping-amazon",
     "command": "ping",
-    "args": [
-      "amazon.com"
-    ]
+    "args": ["amazon.com"]
   }
 ]
 ```
 
-Run start tasks use:
+To start tasks run:
 
 ```shell
 jointly
 ```
 
-In the console you would see this output:
+You can explicitly pass a configuration file path:
 
-<p align="center">
-    <img src="./assets/console.png" width="670">
-</p>
+```shell
+jointly another.config.json
+```
 
-You can specify multiple options for each task:
+# Configuration
+
+Each task supports following options:
 
 <dl>
-<dt>name</dt>
-<dd>The unique name of the task.</dd>
 
-<dt>command</dt>
-<dd>The command to execute.</dd>
+<dt><code>command</code></dt>
+<dd>The shell command to execute.</dd>
 
-<dt>args</dt>
+<dt><code>args</code></dt>
 <dd>The array of CLI arguments to pass to the command.</dd>
 
-<dt>resolveAfter</dt>
+<dt><code>id</code></dt>
+<dd>The unique ID of the task.</dd>
+
+<dt><code>dependencies</code></dt>
+<dd>The array of task IDs that must be resolved before this task.</dd>
+
+<dt><code>resolveStrategy = 'start'</code></dt>
 <dd>
 
-When this task allows its dependants to start.
+Determines when the task is considered fulfilled and allows its dependants to start:
 
-The callback that receives a line that command printed to the stdout and returns `true` if dependent tasks should
-be started. Or `'exit'` if the dependents should start only after this task exits.
+- `'start'` then dependants start immediately after this command is started.
+- `'exit'` then dependents start only after the command exits.
+- The callback that receives a line that command printed to the stdout and returns `true` if dependent tasks should
+  be started, or `false` otherwise.
 
 </dd>
 
-<dt>required</dt>
+<dt><code>rejectStrategy = 'auto'</code></dt>
 <dd>
 
-If `true` then dependent tasks would fail if this one fails.
+Determines when the task is considered failed:
+
+- `'auto'` then the task is failed if the command exit code isn't 0.
+- `'never'` then the task is never failed.
+- The callback that returns `true` is the task must be considered failed for a particular exit code.
 
 </dd>
 
-<dt>dependsOn</dt>
-<dd>The array of task names that must be resolved before this task.</dd>
+<dt><code>cwd</code></dt>
+<dd>The current working directory of the child process.</dd>
+
+<dt><code>env</code></dt>
+<dd>
+
+The object with environment key-value pairs. By default, `process.env` is passed to a spawned task process.
+
+</dd>
+
+<dt><code>argv0</code></dt>
+<dd>
+
+Explicitly set the value of `argv[0]` sent to the child process. This will be set to `command` if not specified.
+
+</dd>
+
+<dt><code>uid</code></dt>
+<dd>Sets the user identity of the process.</dd>
+
+<dt><code>gid</code></dt>
+<dd>Sets the group identity of the process.</dd>
+
+<dt><code>shell = false</code></dt>
+<dd>
+
+If `false`, then no shell is available. If `true`, runs command inside of a shell. Uses `'/bin/sh'` on Unix, and
+`process.env.ComSpec` on Windows. A different shell can be specified as a string.
+See [Shell requirements](https://nodejs.org/api/child_process.html#shell-requirements)
+and [Default Windows shell](https://nodejs.org/api/child_process.html#default-windows-shell).
+
+</dd>
+
+<dt><code>windowsVerbatimArguments = false</code></dt>
+<dd>
+
+No quoting or escaping of arguments is done on Windows. Ignored on Unix. This is set to `true` automatically when shell
+is specified and is CMD.
+
+</dd>
+
+<dt><code>killSignal = 'SIGINT'</code></dt>
+<dd>The signal value to be used when the spawned process will be killed by the abort signal.</dd>
+
+<dt><code>timeout</code></dt>
+<dd>In milliseconds the maximum amount of time the process is allowed to run.</dd>
+
 </dl>
