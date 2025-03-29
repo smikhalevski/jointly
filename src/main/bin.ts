@@ -6,13 +6,15 @@ import { startTasks } from './index.js';
 
 const configPath = path.resolve(process.argv[2] || 'jointly.config');
 
-let tasks;
+let config;
 
 try {
-  tasks = require(configPath).tasks;
+  config = require(configPath);
 } catch {
   die('Cannot load config: ' + configPath);
 }
+
+const tasks = config.default !== undefined ? config.default.tasks : config.tasks;
 
 if (!Array.isArray(tasks)) {
   die('There are no tasks to start');
