@@ -8,12 +8,12 @@ describe('groupTasks', () => {
   test('throws if cyclic dependency detected', () => {
     expect(() =>
       groupTasks([
-        { id: 'aaa', command: 'xxx', dependencies: ['bbb'] },
-        { id: 'bbb', command: 'yyy', dependencies: ['aaa'] },
+        { key: 'aaa', command: 'xxx', dependencies: ['bbb'] },
+        { key: 'bbb', command: 'yyy', dependencies: ['aaa'] },
       ])
     ).toThrow(new Error('Cyclic dependency'));
 
-    expect(() => groupTasks([{ id: 'aaa', command: 'xxx', dependencies: ['aaa'] }])).toThrow(
+    expect(() => groupTasks([{ key: 'aaa', command: 'xxx', dependencies: ['aaa'] }])).toThrow(
       new Error('Cyclic dependency')
     );
   });
@@ -21,16 +21,16 @@ describe('groupTasks', () => {
   test('groups dependent tasks', () => {
     expect(
       groupTasks([
-        { id: 'aaa', command: 'aaa' },
+        { key: 'aaa', command: 'aaa' },
         { command: 'bbb', dependencies: ['aaa'] },
       ])
-    ).toEqual([[{ id: 'aaa', command: 'aaa' }], [{ command: 'bbb', dependencies: ['aaa'] }]]);
+    ).toEqual([[{ key: 'aaa', command: 'aaa' }], [{ command: 'bbb', dependencies: ['aaa'] }]]);
 
     expect(
       groupTasks([
         { command: 'bbb', dependencies: ['aaa'] },
-        { id: 'aaa', command: 'aaa' },
+        { key: 'aaa', command: 'aaa' },
       ])
-    ).toEqual([[{ id: 'aaa', command: 'aaa' }], [{ command: 'bbb', dependencies: ['aaa'] }]]);
+    ).toEqual([[{ key: 'aaa', command: 'aaa' }], [{ command: 'bbb', dependencies: ['aaa'] }]]);
   });
 });
