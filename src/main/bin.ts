@@ -10,17 +10,16 @@ let config;
 
 try {
   config = require(configPath);
-} catch {
-  die('Cannot load config: ' + configPath);
+  config = config.default || config;
+} catch (error) {
+  die('Cannot load config: ' + configPath + '\n\n' + error);
 }
 
-const tasks = config.default !== undefined ? config.default.tasks : config.tasks;
-
-if (!Array.isArray(tasks)) {
+if (!Array.isArray(config.tasks)) {
   die('There are no tasks to start');
 }
 
-startTasks(tasks).catch(error => {
+startTasks(config.tasks).catch(error => {
   die(error.message);
 });
 

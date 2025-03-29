@@ -8,123 +8,101 @@
 
 Run multiple processes from a single terminal.
 
-```shell
-npm install jointly --save-dev
-```
-
-Create a configuration `jointly.config.json` (or `jointly.config.js`) with tasks that should be executed:
+Create a configuration file `jointly.config.json`, `jointly.config.js`, `jointly.config.mjs` (requires NodeJS 23+) or
+`jointly.config.ts` (requires NodeJS 23+) with tasks that should be executed:
 
 ```json
-[
-  {
-    "command": "ping",
-    "args": ["google.com"]
-  },
-  {
-    "command": "ping",
-    "args": ["amazon.com"]
-  }
-]
+{
+  "$schema": "https://raw.githubusercontent.com/smikhalevski/jointly/refs/tags/v0.0.3/schema.json",
+  "tasks": [
+    {
+      "command": "vite"
+    },
+    {
+      "command": "tsc",
+      "args": ["--watch", "--preserveWatchOutput", "--pretty"]
+    }
+  ]
+}
 ```
 
 To start tasks run:
 
 ```shell
-jointly
+npx jointly
 ```
 
-You can explicitly pass a configuration file path:
+You can explicitly specify a configuration file path:
 
 ```shell
-jointly another.config.json
+npx jointly my_config.json
 ```
 
-# Configuration
+# Environment variables
 
-Each task supports following options:
+Specify environment variables for each task:
 
-<dl>
+```json
+{
+  "tasks": [
+    {
+      "command": "printenv",
+      "args": ["HELLO"],
+      "env": {
+        "HELLO": "Hello world!"
+      }
+    }
+  ]
+}
+```
 
-<dt><code>command</code></dt>
-<dd>The shell command to execute.</dd>
+# Task dependencies
 
-<dt><code>args</code></dt>
-<dd>The array of CLI arguments to pass to the command.</dd>
+Tasks can depend on each other. Here's an example where `tsc` type checker is started in parallel with `vite build`,
+while `docker` waits for `vite` to emit built assets and then builds and starts the container.
 
-<dt><code>id</code></dt>
-<dd>The unique ID of the task.</dd>
+```js
+export default {
+  tasks: [
+    {
+      command: 'tsc',
+      args: ['--watch', '--preserveWatchOutput', '--pretty'],
+      resolveAfter: 'exit'
+    },
+    {
+      key: 'vite-build',
+      command: 'vite',
+      args: ['build', '--watch'],
+      
+      // Receives each line vite outputs to stdout
+      resolveAfter: line => line.includes('built in'),
+    },
+    {
+      command: 'docker',
+      args: ['compose', 'up', '--build', '--watch'],
+      dependencies: ['vite-build'],
+    }
+  ]
+}
+```
 
-<dt><code>dependencies</code></dt>
-<dd>The array of task IDs that must be resolved before this task.</dd>
+All processes would proceed running in parallel until user prompt is closed.
 
-<dt><code>resolveAfter = 'start'</code></dt>
-<dd>
+# Kill signal
 
-Determines when the task is considered fulfilled and allows its dependants to start:
+Different processes may require different kill signals. Specify a kill signal for a task:
 
-- `'start'` then dependants start immediately after this command is started.
-- `'exit'` then dependents start only after the command exits.
-- The callback that receives a line that command printed to the stdout and returns `true` if dependent tasks should
-  be started, or `false` otherwise.
+```json
+{
+  "tasks": [
+    {
+      "command": "ping",
+      "args": ["google.com"],
+      "killSignal": "SIGTERM"
+    }
+  ]
+}
+```
 
-</dd>
-
-<dt><code>rejectAfter = 'auto'</code></dt>
-<dd>
-
-Determines when the task is considered failed:
-
-- `'auto'` then the task is failed if the command exit code isn't 0.
-- `'never'` then the task is never failed.
-- The callback that returns `true` is the task must be considered failed for a particular exit code.
-
-</dd>
-
-<dt><code>cwd</code></dt>
-<dd>The current working directory of the child process.</dd>
-
-<dt><code>env</code></dt>
-<dd>
-
-The object with environment key-value pairs. By default, `process.env` is passed to a spawned task process.
-
-</dd>
-
-<dt><code>argv0</code></dt>
-<dd>
-
-Explicitly set the value of `argv[0]` sent to the child process. This will be set to `command` if not specified.
-
-</dd>
-
-<dt><code>uid</code></dt>
-<dd>Sets the user identity of the process.</dd>
-
-<dt><code>gid</code></dt>
-<dd>Sets the group identity of the process.</dd>
-
-<dt><code>shell = false</code></dt>
-<dd>
-
-If `false`, then no shell is available. If `true`, runs command inside of a shell. Uses `'/bin/sh'` on Unix, and
-`process.env.ComSpec` on Windows. A different shell can be specified as a string.
-See [Shell requirements](https://nodejs.org/api/child_process.html#shell-requirements)
-and [Default Windows shell](https://nodejs.org/api/child_process.html#default-windows-shell).
-
-</dd>
-
-<dt><code>windowsVerbatimArguments = false</code></dt>
-<dd>
-
-No quoting or escaping of arguments is done on Windows. Ignored on Unix. This is set to `true` automatically when shell
-is specified and is CMD.
-
-</dd>
-
-<dt><code>killSignal = 'SIGINT'</code></dt>
-<dd>The signal value to be used when the spawned process will be killed by the abort signal.</dd>
-
-<dt><code>timeout</code></dt>
-<dd>In milliseconds the maximum amount of time the process is allowed to run.</dd>
-
-</dl>
+By default, `SIGINT` is used, which is intended to interrupt the currently running process and return control to
+the user prompt. 
