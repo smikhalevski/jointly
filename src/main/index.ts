@@ -32,7 +32,7 @@ export interface Task extends Omit<SpawnOptionsWithoutStdio, 'detached' | 'windo
    *
    * @default start
    */
-  resolveStrategy?: 'start' | 'exit' | ((str: string) => boolean);
+  resolveAfter?: 'start' | 'exit' | ((str: string) => boolean);
 
   /**
    * Determines when the task is considered failed:
@@ -43,7 +43,7 @@ export interface Task extends Omit<SpawnOptionsWithoutStdio, 'detached' | 'windo
    *
    * @default auto
    */
-  rejectStrategy?: 'auto' | 'never' | ((exitCode: number) => boolean);
+  rejectAfter?: 'auto' | 'never' | ((exitCode: number) => boolean);
 
   /**
    * The array of task keys that must be resolved before this task.
@@ -164,7 +164,7 @@ export function launchTask(label: string, task: Task): { childProcess: ChildProc
   const childProcess = spawn(task.command, task.args, Object.assign({}, task, { detached: false, windowsHide: true }));
 
   const promise = new Promise<void>((resolveTask, rejectTask) => {
-    const { resolveStrategy, rejectStrategy } = task;
+    const { resolveAfter, rejectAfter } = task;
 
     childProcess.on('exit', exitCode => {
       // Flush buffer to stdout on exit
@@ -172,12 +172,12 @@ export function launchTask(label: string, task: Task): { childProcess: ChildProc
         printLabelLine(buffer + '\n');
       }
 
-      if (rejectStrategy === 'never') {
+      if (rejectAfter === 'never') {
         return;
       }
 
-      if (typeof rejectStrategy === 'function') {
-        if (rejectStrategy(exitCode || 0)) {
+      if (typeof rejectAfter === 'function') {
+        if (rejectAfter(exitCode || 0)) {
           rejectTask();
         }
         return;
@@ -193,15 +193,15 @@ export function launchTask(label: string, task: Task): { childProcess: ChildProc
 
     let dataListener = printToStdout;
 
-    if (typeof resolveStrategy === 'function') {
+    if (typeof resolveAfter === 'function') {
       dataListener = data => {
-        if (resolveStrategy(stripEscapeCodes(printLine(data.toString())))) {
+        if (resolveAfter(stripEscapeCodes(printLine(data.toString())))) {
           childProcess.stdout.off('data', dataListener).on('data', printToStdout);
           childProcess.stderr.off('data', dataListener).on('data', printToStdout);
           resolveTask();
         }
       };
-    } else if (resolveStrategy === 'exit') {
+    } else if (resolveAfter === 'exit') {
       childProcess.on('exit', () => {
         resolveTask();
       });

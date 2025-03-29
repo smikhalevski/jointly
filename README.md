@@ -57,7 +57,7 @@ Each task supports following options:
 <dt><code>dependencies</code></dt>
 <dd>The array of task IDs that must be resolved before this task.</dd>
 
-<dt><code>resolveStrategy = 'start'</code></dt>
+<dt><code>resolveAfter = 'start'</code></dt>
 <dd>
 
 Determines when the task is considered fulfilled and allows its dependants to start:
@@ -69,7 +69,7 @@ Determines when the task is considered fulfilled and allows its dependants to st
 
 </dd>
 
-<dt><code>rejectStrategy = 'auto'</code></dt>
+<dt><code>rejectAfter = 'auto'</code></dt>
 <dd>
 
 Determines when the task is considered failed:
