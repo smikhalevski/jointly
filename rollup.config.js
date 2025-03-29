@@ -15,6 +15,5 @@ module.exports = [
       { format: 'es', entryFileNames: 'index.mjs', dir: './lib' },
     ],
     plugins: [nodeResolve(), typescript({ tsconfig: './tsconfig.build.json' })],
-    external: ['child_process'],
   },
 ];

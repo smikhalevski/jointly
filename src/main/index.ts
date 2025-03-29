@@ -13,12 +13,12 @@ export interface Task extends Omit<SpawnOptionsWithoutStdio, 'detached' | 'windo
   args?: readonly string[];
 
   /**
-   * The unique ID of the task.
+   * The unique task key.
    */
-  id?: string;
+  key?: string;
 
   /**
-   * The label to render as stdout prefix. If omitted then {@link id} or {@link command} are used as a label.
+   * The label to render as stdout prefix. If omitted then either {@link key} or {@link command} is used as a label.
    */
   label?: string;
 
@@ -32,7 +32,7 @@ export interface Task extends Omit<SpawnOptionsWithoutStdio, 'detached' | 'windo
    *
    * @default start
    */
-  resolveStrategy?: 'start' | 'exit' | ((str: string) => boolean);
+  resolveAfter?: 'start' | 'exit' | ((str: string) => boolean);
 
   /**
    * Determines when the task is considered failed:
@@ -43,10 +43,10 @@ export interface Task extends Omit<SpawnOptionsWithoutStdio, 'detached' | 'windo
    *
    * @default auto
    */
-  rejectStrategy?: 'auto' | 'never' | ((exitCode: number) => boolean);
+  rejectAfter?: 'auto' | 'never' | ((exitCode: number) => boolean);
 
   /**
-   * The array of task IDs that must be resolved before this task.
+   * The array of task keys that must be resolved before this task.
    */
   dependencies?: string[];
 }
@@ -106,7 +106,7 @@ export function groupTasks(tasks: Task[]): Task[][] {
     const group = dependents.filter(
       task =>
         !Array.isArray(task.dependencies) ||
-        !dependents.some(dependent => dependent.id !== undefined && task.dependencies!.includes(dependent.id))
+        !dependents.some(dependent => dependent.key !== undefined && task.dependencies!.includes(dependent.key))
     );
 
     if (group.length === 0) {
@@ -164,40 +164,44 @@ export function launchTask(label: string, task: Task): { childProcess: ChildProc
   const childProcess = spawn(task.command, task.args, Object.assign({}, task, { detached: false, windowsHide: true }));
 
   const promise = new Promise<void>((resolveTask, rejectTask) => {
-    const { resolveStrategy, rejectStrategy } = task;
+    const { resolveAfter, rejectAfter } = task;
 
     childProcess.on('exit', exitCode => {
       // Flush buffer to stdout on exit
       if (buffer.length !== 0) {
         printLabelLine(buffer + '\n');
       }
-      if (rejectStrategy === 'never') {
+
+      if (rejectAfter === 'never') {
         return;
       }
-      if (typeof rejectStrategy === 'function') {
-        if (rejectStrategy(exitCode || 0)) {
+
+      if (typeof rejectAfter === 'function') {
+        if (rejectAfter(exitCode || 0)) {
           rejectTask();
         }
         return;
       }
+
       if (exitCode === null || exitCode === 0) {
         return;
       }
+
       // Kill the sequence if the task has failed
       rejectTask();
     });
 
     let dataListener = printToStdout;
 
-    if (typeof resolveStrategy === 'function') {
+    if (typeof resolveAfter === 'function') {
       dataListener = data => {
-        if (resolveStrategy(stripEscapeCodes(printLine(data.toString())))) {
+        if (resolveAfter(stripEscapeCodes(printLine(data.toString())))) {
           childProcess.stdout.off('data', dataListener).on('data', printToStdout);
           childProcess.stderr.off('data', dataListener).on('data', printToStdout);
           resolveTask();
         }
       };
-    } else if (resolveStrategy === 'exit') {
+    } else if (resolveAfter === 'exit') {
       childProcess.on('exit', () => {
         resolveTask();
       });
@@ -221,7 +225,7 @@ export function stripEscapeCodes(str: string): string {
 }
 
 export function getLabel(task: Task): string {
-  return task.label || task.id || task.command;
+  return task.label || task.key || task.command;
 }
 
 function noop() {}
