@@ -15,17 +15,19 @@ export interface Task {
   key?: string;
 
   /**
-   * The label to render as stdout prefix. If omitted then either {@link key} or {@link command} is used as a label.
+   * The label to render as the stdout prefix.
+   *
+   * If omitted, either {@link key} or {@link command} is used as the label.
    */
   label?: string;
 
   /**
-   * Determines when the task is considered fulfilled and allows its dependants to start:
+   * Determines when the task is considered fulfilled and allows its dependents to start:
    *
-   * - `start` then dependants start immediately after this command is started.
-   * - `exit` then dependents start only after the command exits.
-   * - The callback that receives a line that command printed to the stdout and returns `true` if dependent tasks should
-   * be started, or `false` otherwise.
+   * - `start`: dependents start immediately after this command is started.
+   * - `exit`: dependents start only after the command exits.
+   * - A callback that receives a line printed to stdout and returns `true` if dependent tasks should be started,
+   * or `false` otherwise.
    *
    * @default start
    */
@@ -34,9 +36,9 @@ export interface Task {
   /**
    * Determines when the task is considered failed:
    *
-   * - `auto` then the task is failed if the command exit code isn't 0.
-   * - `never` then the task is never failed.
-   * - The callback that returns `true` is the task must be considered failed for a particular exit code.
+   * - `auto`: the task fails if the command exit code is not 0.
+   * - `never`: the task never fails.
+   * - A callback that returns `true` if the task should be considered failed for a particular exit code.
    *
    * @default auto
    */
@@ -47,16 +49,67 @@ export interface Task {
    */
   dependencies?: string[];
 
+  /**
+   * Explicitly sets the value of `argv[0]` passed to the task process.
+   *
+   * If not specified, it defaults to {@link command}.
+   */
   argv0?: string;
+
+  /**
+   * The current working directory of the task process.
+   *
+   * @default process.cwd()
+   */
   cwd?: string | URL;
+
+  /**
+   * Environment key-value pairs.
+   *
+   * @default process.env
+   */
   env?: Record<string, string>;
-  gid?: number;
-  killSignal?: OSSignal | number;
-  shell?: boolean | string;
-  signal?: AbortSignal;
-  stdio?: 'pipe' | 'overlapped' | Array<'pipe' | 'overlapped' | null | undefined>;
-  timeout?: number;
+
+  /**
+   * Sets the user identity of the process.
+   */
   uid?: number;
+
+  /**
+   * Sets the group identity of the process.
+   */
+  gid?: number;
+
+  /**
+   * The signal used to kill the process.
+   */
+  killSignal?: OSSignal | number;
+
+  /**
+   * The shell used to execute the command.
+   *
+   * Default: `/bin/sh` on Unix, `process.env.ComSpec` on Windows.
+   */
+  shell?: boolean | string;
+
+  /**
+   * Allows aborting the task process using an {@link AbortSignal}.
+   */
+  signal?: AbortSignal;
+
+  // stdio?: 'pipe' | 'overlapped' | Array<'pipe' | 'overlapped' | null | undefined>;
+
+  /**
+   * If {@link timeout} is greater than 0, Jointly sends the signal specified by {@link killSignal} if the task process
+   * runs longer than {@link timeout} milliseconds.
+   */
+  timeout?: number;
+
+  /**
+   * Disables quoting and escaping of arguments on Windows.
+   *
+   * @default false
+   */
   windowsVerbatimArguments?: boolean;
 }
 

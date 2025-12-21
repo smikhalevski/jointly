@@ -107,7 +107,7 @@ function launchTask(label: string, task: Task): { childProcess: ChildProcess; pr
     printLine(data.toString());
   };
 
-  const childProcess = spawn(task.command, task.args, Object.assign({}, task, { detached: false, windowsHide: true }));
+  const childProcess = spawn(task.command, task.args, { ...task, detached: false, windowsHide: true });
 
   const promise = new Promise<void>((resolveTask, rejectTask) => {
     const { resolveAfter, rejectAfter } = task;
