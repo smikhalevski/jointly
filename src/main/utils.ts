@@ -1,7 +1,7 @@
-import { blue, dim, print, underline } from './print.js';
+import { blue, dim, echo, underline } from './echo.js';
 
 export function printHelp(): void {
-  print(`jointly: Run multiple processes in parallel. 
+  echo(`jointly: Run multiple processes in parallel. 
 
 ${dim('jointly [...options]')}
 
@@ -18,5 +18,5 @@ Visit ${blue(underline('https://megastack.dev/jointly'))} for docs and tutorials
 }
 
 export function printError(error: unknown): void {
-  print(error instanceof Error ? error.message : '' + error);
+  echo(error instanceof Error ? error.message : '' + error);
 }

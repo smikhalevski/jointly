@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { startTasks } from '../startTasks.js';
-import { print } from '../print.js';
 import fs from 'node:fs';
+import { startTasks } from '../startTasks.js';
+import { echo } from '../echo.js';
 import { printError, printHelp } from '../utils.js';
 
-print.isColorized = process.stdout.isTTY && process.env.FORCE_COLOR !== '0';
+echo.isColorized = process.stdout.isTTY && process.env.FORCE_COLOR !== '0';
 
 const fallbackConfigPaths = ['jointly.config.ts', 'jointly.config.js', 'jointly.config.mts', 'jointly.config.mjs'];
 
@@ -14,7 +14,7 @@ let argvConfigPath;
 for (let i = 2; i < process.argv.length; ++i) {
   switch (process.argv[i]) {
     case '--help':
-      print.isSilent = false;
+      echo.isSilent = false;
       printHelp();
       process.exit(0);
       break;
@@ -24,11 +24,11 @@ for (let i = 2; i < process.argv.length; ++i) {
       break;
 
     case '--silent':
-      print.isSilent = true;
+      echo.isSilent = true;
       break;
 
     case '--color':
-      print.isColorized = true;
+      echo.isColorized = true;
       break;
   }
 }

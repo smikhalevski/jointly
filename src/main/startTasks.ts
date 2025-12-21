@@ -1,5 +1,5 @@
 import { ChildProcess, spawn } from 'node:child_process';
-import { blue, cyan, green, magenta, red, yellow } from './print.js';
+import { blue, cyan, green, magenta, red, yellow } from './echo.js';
 import { Task } from './index.js';
 
 const labelColors = [blue, red, magenta, yellow, cyan, green];
