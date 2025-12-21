@@ -1,6 +1,6 @@
 {
   "name": "jointly",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Run multiple processes in parallel.",
   "type": "module",
   "main": "./index.js",
