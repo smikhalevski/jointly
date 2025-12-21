@@ -1,4 +1,5 @@
-import { groupTasks } from '../main';
+import { describe, test, expect } from 'vitest';
+import { groupTasks } from '../main/startTasks.js';
 
 describe('groupTasks', () => {
   test('groups tasks', () => {

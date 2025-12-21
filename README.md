@@ -8,22 +8,22 @@
 
 Run multiple processes from a single terminal.
 
-Create a configuration file `jointly.config.json`, `jointly.config.js`, `jointly.config.mjs` (requires NodeJS 23+) or
-`jointly.config.ts` (requires NodeJS 23+) with tasks that should be executed:
+Put your config in _mfml.config.js_ (other JS and TS extensions are also supported).
 
-```json
-{
-  "$schema": "https://raw.githubusercontent.com/smikhalevski/jointly/refs/tags/v0.0.3/schema.json",
-  "tasks": [
+```ts
+import { defineConfig } from 'jointly';
+
+export default defineConfig({
+  tasks: [
     {
-      "command": "vite"
+      command: 'vite',
     },
     {
-      "command": "tsc",
-      "args": ["--watch", "--preserveWatchOutput", "--pretty"]
-    }
-  ]
-}
+      command: 'tsc',
+      args: ['--watch', '--preserveWatchOutput', '--pretty'],
+    },
+  ],
+});
 ```
 
 To start tasks run:
@@ -35,25 +35,25 @@ npx jointly
 You can explicitly specify a configuration file path:
 
 ```shell
-npx jointly my_config.json
+npx jointly --config my-config.js
 ```
 
 # Environment variables
 
 Specify environment variables for each task:
 
-```json
-{
-  "tasks": [
+```ts
+export default defineConfig({
+  tasks: [
     {
-      "command": "printenv",
-      "args": ["HELLO"],
-      "env": {
-        "HELLO": "Hello world!"
-      }
-    }
-  ]
-}
+      command: 'printenv',
+      args: ['HELLO'],
+      env: {
+        HELLO: 'Hello world!',
+      },
+    },
+  ],
+});
 ```
 
 # Task dependencies
@@ -61,19 +61,19 @@ Specify environment variables for each task:
 Tasks can depend on each other. Here's an example where `tsc` type checker is started in parallel with `vite build`,
 while `docker` waits for `vite` to emit built assets and then builds and starts the container.
 
-```js
-export default {
+```ts
+export default defineConfig({
   tasks: [
     {
       command: 'tsc',
       args: ['--watch', '--preserveWatchOutput', '--pretty'],
-      resolveAfter: 'exit'
+      resolveAfter: 'exit',
     },
     {
       key: 'vite-build',
       command: 'vite',
       args: ['build', '--watch'],
-      
+
       // Receives each line vite outputs to stdout
       resolveAfter: line => line.includes('built in'),
     },
@@ -81,9 +81,9 @@ export default {
       command: 'docker',
       args: ['compose', 'up', '--build', '--watch'],
       dependencies: ['vite-build'],
-    }
-  ]
-}
+    },
+  ],
+});
 ```
 
 All processes would proceed running in parallel until user prompt is closed.
@@ -92,17 +92,17 @@ All processes would proceed running in parallel until user prompt is closed.
 
 Different processes may require different kill signals. Specify a kill signal for a task:
 
-```json
-{
-  "tasks": [
+```ts
+export default defineConfig({
+  tasks: [
     {
-      "command": "ping",
-      "args": ["google.com"],
-      "killSignal": "SIGTERM"
-    }
-  ]
-}
+      command: 'ping',
+      args: ['google.com'],
+      killSignal: 'SIGTERM',
+    },
+  ],
+});
 ```
 
 By default, `SIGINT` is used, which is intended to interrupt the currently running process and return control to
-the user prompt. 
+the user prompt.
