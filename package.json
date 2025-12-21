@@ -14,7 +14,7 @@
   },
   "sideEffects": false,
   "scripts": {
-    "build": "tsc --project tsconfig.build.json && cp package.json README.md LICENSE.txt lib/ && cd lib && npm pkg delete scripts devDependencies && rimraf bin/mfml.d.ts && chmod +x bin/jointly.js",
+    "build": "tsc --project tsconfig.build.json && rimraf --glob 'lib/bin/**/*.d.ts' && cp package.json README.md LICENSE.txt lib/ && cd lib && npm pkg delete scripts devDependencies && rimraf bin/mfml.d.ts && chmod +x bin/jointly.js",
     "clean": "rimraf lib docs coverage",
     "test": "vitest run"
   },
