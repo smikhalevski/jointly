@@ -8,7 +8,7 @@
 
 Run multiple processes from a single terminal.
 
-Put your config in _mfml.config.js_ (other JS and TS extensions are also supported).
+Put your config in _jointly.config.js_ (other JS and TS extensions are also supported).
 
 ```ts
 import { defineConfig } from 'jointly';
@@ -36,24 +36,6 @@ You can explicitly specify a configuration file path:
 
 ```shell
 npx jointly --config my-config.js
-```
-
-# Environment variables
-
-Specify environment variables for each task:
-
-```ts
-export default defineConfig({
-  tasks: [
-    {
-      command: 'printenv',
-      args: ['HELLO'],
-      env: {
-        HELLO: 'Hello world!',
-      },
-    },
-  ],
-});
 ```
 
 # Task dependencies
@@ -86,7 +68,45 @@ export default defineConfig({
 });
 ```
 
-All processes would proceed running in parallel until user prompt is closed.
+All processes continue running in parallel until the terminal is closed.
+
+# Environment variables
+
+By default, all environment variables are accessible inside a task process. To overwrite environment variables, specify
+`env` object for a task:
+
+```ts
+export default defineConfig({
+  tasks: [
+    {
+      command: 'printenv',
+      args: ['HELLO'],
+      env: {
+        // ⚠️ Replaces all environment variables!
+        HELLO: 'Hello world!',
+      },
+    },
+  ],
+});
+```
+
+The `env` object replaces the entire environment. To extend the parent environment, use `process.env`:
+
+```ts
+export default defineConfig({
+  tasks: [
+    {
+      command: 'printenv',
+      args: ['HELLO'],
+      env: {
+        // ✅ Environment variables are preserved!
+        ...process.env,
+        HELLO: 'Hello world!',
+      },
+    },
+  ],
+});
+```
 
 # Kill signal
 
@@ -106,3 +126,107 @@ export default defineConfig({
 
 By default, `SIGINT` is used, which is intended to interrupt the currently running process and return control to
 the user prompt.
+
+# Task timeouts
+
+Add timeouts to prevent tasks from running indefinitely:
+
+```ts
+import { defineConfig } from 'jointly';
+
+export default defineConfig({
+  tasks: [
+    {
+      command: 'slow-script',
+      timeout: 30_000, // 30 seconds
+      killSignal: 'SIGTERM',
+    },
+  ],
+});
+```
+
+# Cookbook
+
+## Build packages in monorepo
+
+Manage multiple packages in a monorepo:
+
+```ts
+import { defineConfig } from 'jointly';
+
+export default defineConfig({
+  tasks: [
+    {
+      key: 'build-shared',
+      command: 'npm',
+      args: ['run', 'build'],
+      cwd: './packages/shared',
+      resolveAfter: 'exit',
+    },
+    {
+      command: 'npm',
+      args: ['run', 'build'],
+      cwd: './packages/app',
+      dependencies: ['build-shared'],
+    },
+    {
+      command: 'npm',
+      args: ['run', 'build'],
+      cwd: './packages/admin',
+      dependencies: ['build-shared'],
+    },
+  ],
+});
+```
+
+## Dynamic configuration
+
+Generate your configuration dynamically:
+
+```ts
+import { readdirSync } from 'node:fs';
+import { defineConfig, type Task } from 'jointly';
+
+const tasks: Task[] = [];
+
+for (const entry of readdirSync('./packages', { withFileTypes: true })) {
+  if (entry.isDirectory()) {
+    tasks.push({
+      key: 'build-' + entry.name,
+      command: 'npm',
+      args: ['run', 'build'],
+      cwd: './packages/' + entry.name,
+      label: entry.name,
+    });
+  }
+}
+
+export default defineConfig({ tasks });
+```
+
+You can conditionally execute tasks via dynamic configuration:
+
+```ts
+import { defineConfig, type Task } from 'jointly';
+
+const tasks: Task[] = [
+  {
+    command: 'vite',
+  },
+];
+
+if (process.env.RUN_TESTS === '1') {
+  tasks.push({
+    command: 'vitest',
+    args: ['watch'],
+  });
+}
+
+export default defineConfig({ tasks });
+```
+
+Then pass `RUN_TESTS` environment variable to `jointly`:
+
+```shell
+RUN_TESTS=1 npx jointly
+```

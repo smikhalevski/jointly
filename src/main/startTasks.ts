@@ -12,7 +12,7 @@ const labelColors = [blue, red, magenta, yellow, cyan, green];
  */
 export function startTasks(tasks: Task[]): Promise<void> {
   const labelLength = tasks.reduce((length, task) => Math.max(length, getLabel(task).length), 0) + 2;
-  const launchedTasks: [Task, ChildProcess][] = [];
+  const launchedTasks: { task: Task; childProcess: ChildProcess }[] = [];
 
   let promise: Promise<unknown> = Promise.resolve();
   let taskIndex = 0;
@@ -23,9 +23,9 @@ export function startTasks(tasks: Task[]): Promise<void> {
         taskGroup.map(task => {
           const labelColor = labelColors[taskIndex++ % labelColors.length];
           const label = getLabel(task).padEnd(labelLength) + '|';
-          const { childProcess, promise } = launchTask(labelColor !== undefined ? labelColor(label) : label, task);
+          const { childProcess, promise } = launchTask(labelColor(label), task);
 
-          launchedTasks.push([task, childProcess]);
+          launchedTasks.push({ task, childProcess });
 
           return promise;
         })
@@ -37,7 +37,7 @@ export function startTasks(tasks: Task[]): Promise<void> {
     () => undefined,
     () => {
       // Kill all child processes on failure
-      for (const [task, childProcess] of launchedTasks) {
+      for (const { task, childProcess } of launchedTasks) {
         childProcess.kill(task.killSignal || 'SIGINT');
       }
     }
